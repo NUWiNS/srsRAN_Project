@@ -16,6 +16,12 @@ RUN apt-get update && apt-get install -y \
     libsctp-dev \
     libzmq3-dev \
     git \
+    iputils-ping \
+    iperf3 \
+    nuttcp \
+    traceroute \
+    net-tools \
+    iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Clone and build srsue
