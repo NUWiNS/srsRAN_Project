@@ -86,6 +86,10 @@ services:
         condition: service_healthy
     # Command to run into the final container
     command: gnb -c /gnb_config.yml
+    ports:
+      - "2000:2000"
+      - "2001:2001"
+    hostname: gnb
 
   metrics-server:
     container_name: metrics_server
@@ -137,6 +141,29 @@ services:
     networks:
       metrics:
         ipv4_address: 172.19.1.6
+
+  ue:
+    container_name: srsran_ue
+    image: srsue
+    build:
+      context: .
+      dockerfile: Dockerfile.ue
+    volumes:
+      - ../configs:/config
+      - ./logs:/app/logs
+    command: /config/ue_zmq.conf
+    networks:
+      ran:
+        ipv4_address: ${UE_IP:-10.53.1.4}
+    depends_on:
+      gnb:
+        condition: service_started
+    hostname: ue
+    healthcheck:
+      test: ["CMD", "pgrep", "srsue"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 configs:
   gnb_config.yml:

@@ -1,0 +1,49 @@
+# Use Ubuntu 22.04 as the base image
+FROM ubuntu:22.04
+
+# Set environment variables to avoid interactive prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install necessary dependencies
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    build-essential \
+    cmake \
+    libfftw3-dev \
+    libmbedtls-dev \
+    libboost-program-options-dev \
+    libconfig++-dev \
+    libsctp-dev \
+    libzmq3-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone and build srsue
+RUN git clone https://github.com/srsran/srsRAN_4G.git /tmp/srsRAN \
+    && cd /tmp/srsRAN \
+    && mkdir build \
+    && cd build \
+    && cmake ../ -DENABLE_SRSUE=ON -DENABLE_SRSENB=OFF -DENABLE_SRSEPC=OFF -DENABLE_TESTS=OFF \
+    && make -j$(nproc) \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/srsRAN
+
+# Set the working directory
+WORKDIR /app
+
+# Make srsue globally accessible
+ENV PATH="/usr/local/bin:${PATH}"
+
+# Create a directory for configuration files
+RUN mkdir /config
+
+# Set the entrypoint to srsue
+ENTRYPOINT ["srsue"]
+
+# Default command (can be overridden in docker-compose)
+CMD ["/config/ue.conf"]
+
+# Add a health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+  CMD pgrep srsue || exit 1
