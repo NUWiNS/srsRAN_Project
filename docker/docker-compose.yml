@@ -86,9 +86,6 @@ services:
         condition: service_healthy
     # Command to run into the final container
     command: gnb -c /gnb_config.yml
-    ports:
-      - "2000:2000"
-      - "2001:2001"
     hostname: gnb
 
   metrics-server:
