@@ -145,6 +145,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.ue
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     volumes:
       - ../configs:/config
       - ./logs:/app/logs
