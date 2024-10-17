@@ -1,0 +1,54 @@
+# This example configuration outlines how to configure the srsRAN Project gNB to create a single FDD cell
+# transmitting in band 3, with 20 MHz bandwidth and 15 kHz sub-carrier-spacing. A USRP B200 is configured
+# as the RF frontend using split 8, with a Leo Bodnar GPSDO as an external reference clock.
+
+# This particular configuration is intended to be used with srsUE. Note the `pdcch` parameters set in the
+# `cell_cfg` section. These are set to match the capabilities of srsUE.
+
+cu_cp:
+  amf:
+    addr: 10.53.1.2 # The address or hostname of the AMF. Check Open5GS config -> amf -> ngap -> addr
+    port: 38412
+    bind_addr: 10.53.1.1 # A local IP that the gNB binds to for traffic from the AMF.
+    supported_tracking_areas:
+      - tac: 7
+        plmn_list:
+          - plmn: "00101"
+            tai_slice_support_list:
+              - sst: 1
+  inactivity_timer: 7200            # Sets the UE/PDU Session/DRB inactivity timer to 7200 seconds. Supported: [1 - 7200].
+
+ru_sdr:
+  device_driver: uhd
+  device_args: type=x300,addr=192.168.40.42,serial=31563EB
+  clock: external
+  srate: 23.04
+  tx_gain: 75
+  rx_gain: 75
+
+cell_cfg:
+  dl_arfcn: 368500                  # ARFCN of the downlink carrier (center frequency).
+  band: 3                           # The NR band.
+  channel_bandwidth_MHz: 20         # Bandwith in MHz. Number of PRBs will be automatically derived.
+  common_scs: 15                    # Subcarrier spacing in kHz used for data.
+  plmn: "00101"                     # PLMN broadcasted by the gNB.
+  tac: 7                            # Tracking area code (needs to match the core configuration).
+  pdcch:
+    common:
+      ss0_index: 0                  # Set search space zero index to match srsUE capabilities
+      coreset0_index: 12            # Set search CORESET Zero index to match srsUE capabilities
+    dedicated:
+      ss2_type: common              # Search Space type, has to be set to common
+      dci_format_0_1_and_1_1: false # Set correct DCI format (fallback)
+  prach:
+    prach_config_index: 1           # Sets PRACH config to match what is expected by srsUE
+
+log:
+  filename: /tmp/gnb.log
+  all_level: info
+
+pcap:
+  mac_enable: enable
+  mac_filename: /tmp/gnb_mac.pcap
+  ngap_enable: enable
+  ngap_filename: /tmp/gnb_ngap.pcap
