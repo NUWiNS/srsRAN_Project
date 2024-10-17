@@ -38,7 +38,7 @@ from retina.protocol.ue_pb2 import IPerfDir, IPerfProto
 from retina.protocol.ue_pb2_grpc import UEStub
 
 from .steps.configuration import configure_test_parameters, get_minimum_sample_rate_for_bandwidth, is_tdd
-from .steps.stub import iperf_parallel, start_and_attach, stop
+from .steps.stub import INTER_UE_START_PERIOD, iperf_parallel, start_and_attach, stop
 
 TINY_DURATION = 10
 SHORT_DURATION = 20
@@ -178,7 +178,7 @@ def get_maximum_throughput(bandwidth: int, band: int, direction: IPerfDir, proto
     (param(3, 15, 10, id="band:%s-scs:%s-bandwidth:%s"),),
 )
 @mark.zmq_srsue
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def test_srsue(
     retina_manager: RetinaTestManager,
     retina_data: RetinaTestData,
@@ -244,7 +244,7 @@ def test_srsue(
     reruns=2,
     only_rerun=["failed to start", "Exception calling application", "Attach timeout reached", "Some packages got lost"],
 )
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def test_android(
     retina_manager: RetinaTestManager,
     retina_data: RetinaTestData,
@@ -309,7 +309,7 @@ def test_android(
     reruns=2,
     only_rerun=["failed to start", "Exception calling application", "Attach timeout reached", "Some packages got lost"],
 )
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def test_android_hp(
     retina_manager: RetinaTestManager,
     retina_data: RetinaTestData,
@@ -361,7 +361,7 @@ def test_android_hp(
 )
 @mark.zmq_2x2_mimo
 @mark.flaky(reruns=2, only_rerun=["failed to start", "Attach timeout reached", "5GC crashed"])
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def test_zmq_2x2_mimo(
     retina_manager: RetinaTestManager,
     retina_data: RetinaTestData,
@@ -375,7 +375,7 @@ def test_zmq_2x2_mimo(
     direction: IPerfDir,
 ):
     """
-    ZMQ 4x4 mimo IPerfs
+    ZMQ 2x2 mimo IPerfs
     """
 
     _iperf(
@@ -397,6 +397,9 @@ def test_zmq_2x2_mimo(
         always_download_artifacts=True,
         rx_to_tx_latency=2,
         enable_dddsu=True,
+        nof_antennas_dl=2,
+        nof_antennas_ul=2,
+        inter_ue_start_period=1.5,  # Due to uesim
     )
 
 
@@ -421,7 +424,7 @@ def test_zmq_2x2_mimo(
 )
 @mark.zmq_4x4_mimo
 @mark.flaky(reruns=2, only_rerun=["failed to start", "Attach timeout reached", "5GC crashed"])
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def test_zmq_4x4_mimo(
     retina_manager: RetinaTestManager,
     retina_data: RetinaTestData,
@@ -455,6 +458,8 @@ def test_zmq_4x4_mimo(
         global_timing_advance=-1,
         time_alignment_calibration=0,
         always_download_artifacts=False,
+        nof_antennas_dl=4,
+        nof_antennas_ul=4,
     )
 
 
@@ -476,7 +481,7 @@ def test_zmq_4x4_mimo(
 )
 @mark.zmq
 @mark.smoke
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def test_smoke(
     retina_manager: RetinaTestManager,
     retina_data: RetinaTestData,
@@ -553,9 +558,10 @@ def test_smoke(
         "iperf did not achieve the expected data rate",
         "socket is already closed",
         "failed to connect to all addresses",
+        "5GC crashed",
     ],
 )
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def test_zmq(
     retina_manager: RetinaTestManager,
     retina_data: RetinaTestData,
@@ -619,7 +625,7 @@ def test_zmq(
     ),
 )
 @mark.rf
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def test_rf(
     retina_manager: RetinaTestManager,
     retina_data: RetinaTestData,
@@ -657,7 +663,7 @@ def test_rf(
     )
 
 
-# pylint: disable=too-many-arguments, too-many-locals
+# pylint: disable=too-many-arguments,too-many-positional-arguments, too-many-locals
 def _iperf(
     retina_manager: RetinaTestManager,
     retina_data: RetinaTestData,
@@ -684,6 +690,9 @@ def _iperf(
     ue_stop_timeout: int = 0,
     rx_to_tx_latency: int = -1,
     enable_dddsu: bool = False,
+    nof_antennas_dl: int = 1,
+    nof_antennas_ul: int = 1,
+    inter_ue_start_period=INTER_UE_START_PERIOD,
 ):
     wait_before_power_off = 5
 
@@ -702,13 +711,17 @@ def _iperf(
         prach_config_index=prach_config_index,
         rx_to_tx_latency=rx_to_tx_latency,
         enable_dddsu=enable_dddsu,
+        nof_antennas_dl=nof_antennas_dl,
+        nof_antennas_ul=nof_antennas_ul,
     )
     configure_artifacts(
         retina_data=retina_data,
         always_download_artifacts=always_download_artifacts,
     )
 
-    ue_attach_info_dict = start_and_attach(ue_array, gnb, fivegc, gnb_post_cmd=gnb_post_cmd, plmn=plmn)
+    ue_attach_info_dict = start_and_attach(
+        ue_array, gnb, fivegc, gnb_post_cmd=gnb_post_cmd, plmn=plmn, inter_ue_start_period=inter_ue_start_period
+    )
 
     iperf_parallel(
         ue_attach_info_dict,

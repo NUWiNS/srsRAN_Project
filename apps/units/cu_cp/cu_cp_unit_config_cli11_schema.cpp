@@ -58,31 +58,155 @@ static void configure_cli11_pcap_args(CLI::App& app, cu_cp_unit_pcap_config& pca
   add_option(app, "--e1ap_enable", pcap_params.e1ap.enabled, "Enable E1AP packet capture")->always_capture_default();
 }
 
+static void configure_cli11_tai_slice_support_args(CLI::App& app, s_nssai_t& config)
+{
+  add_option(app, "--sst", config.sst, "Slice Service Type")->capture_default_str()->check(CLI::Range(0, 255));
+  add_option(app, "--sd", config.sd, "Service Differentiator")->capture_default_str()->check(CLI::Range(0, 0xffffff));
+}
+
+static void configure_cli11_plmn_item_args(CLI::App& app, cu_cp_unit_plmn_item& config)
+{
+  add_option(app, "--plmn", config.plmn_id, "PLMN to be configured");
+
+  // TAI slice support list.
+  app.add_option_function<std::vector<std::string>>(
+      "--tai_slice_support_list",
+      [&config](const std::vector<std::string>& values) {
+        config.tai_slice_support_list.resize(values.size());
+
+        for (unsigned i = 0, e = values.size(); i != e; ++i) {
+          CLI::App subapp("TAI slice support list");
+          subapp.config_formatter(create_yaml_config_parser());
+          subapp.allow_config_extras(CLI::config_extras_mode::error);
+          configure_cli11_tai_slice_support_args(subapp, config.tai_slice_support_list[i]);
+          std::istringstream ss(values[i]);
+          subapp.parse_from_stream(ss);
+        }
+      },
+      "Sets the list of TAI slices for this PLMN");
+}
+
+static void configure_cli11_supported_ta_args(CLI::App& app, cu_cp_unit_supported_ta_item& config)
+{
+  add_option(app, "--tac", config.tac, "TAC to be configured")->check([](const std::string& value) {
+    std::stringstream ss(value);
+    unsigned          tac;
+    ss >> tac;
+
+    // Values 0 and 0xfffffe are reserved.
+    if (tac == 0U || tac == 0xfffffeU) {
+      return "TAC values 0 or 0xfffffe are reserved";
+    }
+
+    return (tac <= 0xffffffU) ? "" : "TAC value out of range";
+  });
+
+  // PLMN item list.
+  app.add_option_function<std::vector<std::string>>(
+      "--plmn_list",
+      [&config](const std::vector<std::string>& values) {
+        config.plmn_list.resize(values.size());
+
+        for (unsigned i = 0, e = values.size(); i != e; ++i) {
+          CLI::App subapp("PLMN item list");
+          subapp.config_formatter(create_yaml_config_parser());
+          subapp.allow_config_extras(CLI::config_extras_mode::error);
+          configure_cli11_plmn_item_args(subapp, config.plmn_list[i]);
+          std::istringstream ss(values[i]);
+          subapp.parse_from_stream(ss);
+        }
+      },
+      "Sets the list of PLMN items for this tracking area");
+}
+
+static void configure_cli11_amf_item_args(CLI::App& app, cu_cp_unit_amf_config_item& config)
+{
+  add_option(app, "--addr", config.ip_addr, "AMF IP address");
+  add_option(app, "--port", config.port, "AMF port")->capture_default_str()->check(CLI::Range(20000, 40000));
+  add_option(app, "--bind_addr", config.bind_addr, "Local IP address to bind for N2 interface")->check(CLI::ValidIPV4);
+  add_option(app, "--bind_interface", config.bind_interface, "Network device to bind for N2 interface")
+      ->capture_default_str();
+  add_option(app, "--sctp_rto_initial", config.sctp_rto_initial, "SCTP initial RTO value");
+  add_option(app, "--sctp_rto_min", config.sctp_rto_min, "SCTP RTO min");
+  add_option(app, "--sctp_rto_max", config.sctp_rto_max, "SCTP RTO max");
+  add_option(app, "--sctp_init_max_attempts", config.sctp_init_max_attempts, "SCTP init max attempts");
+  add_option(app, "--sctp_max_init_timeo", config.sctp_max_init_timeo, "SCTP max init timeout ");
+  add_option(app,
+             "--sctp_nodelay",
+             config.sctp_nodelay,
+             "Send SCTP messages as soon as possible without any Nagle-like algorithm");
+
+  // supported tracking areas configuration parameters.
+  app.add_option_function<std::vector<std::string>>(
+      "--supported_tracking_areas",
+      [&config](const std::vector<std::string>& values) {
+        config.supported_tas.resize(values.size());
+
+        for (unsigned i = 0, e = values.size(); i != e; ++i) {
+          CLI::App subapp("Supported tracking areas of AMF");
+          subapp.config_formatter(create_yaml_config_parser());
+          subapp.allow_config_extras(CLI::config_extras_mode::error);
+          configure_cli11_supported_ta_args(subapp, config.supported_tas[i]);
+          std::istringstream ss(values[i]);
+          subapp.parse_from_stream(ss);
+        }
+      },
+      "Sets the list of tracking areas supported by this AMF");
+}
+
+static void configure_cli11_amf_args(CLI::App& app, cu_cp_unit_amf_config& config)
+{
+  add_option(app, "--no_core", config.no_core, "Allow CU-CP to run without a core")->capture_default_str();
+
+  // AMF parameters.
+  configure_cli11_amf_item_args(app, config.amf);
+}
+
 static void configure_cli11_report_args(CLI::App& app, cu_cp_unit_report_config& report_params)
 {
   add_option(app, "--report_cfg_id", report_params.report_cfg_id, "Report configuration id to be configured")
       ->check(CLI::Range(1, 64));
   add_option(app, "--report_type", report_params.report_type, "Type of the report configuration")
       ->check(CLI::IsMember({"periodical", "event_triggered"}));
+  add_option(app,
+             "--event_triggered_report_type",
+             report_params.event_triggered_report_type,
+             "Type of the event triggered report")
+      ->check(CLI::IsMember({"a1", "a2", "a3", "a4", "a5", "a6"}));
   add_option(app, "--report_interval_ms", report_params.report_interval_ms, "Report interval in ms")
       ->check(
           CLI::IsMember({120, 240, 480, 640, 1024, 2048, 5120, 10240, 20480, 40960, 60000, 360000, 720000, 1800000}));
-  add_option(app, "--a3_report_type", report_params.a3_report_type, "A3 report type")
+  add_option(app,
+             "--meas_trigger_quantity",
+             report_params.meas_trigger_quantity,
+             "Measurement trigger quantity (RSRP/RSRQ/SINR)")
       ->check(CLI::IsMember({"rsrp", "rsrq", "sinr"}));
   add_option(app,
-             "--a3_offset_db",
-             report_params.a3_offset_db,
-             "A3 offset in dB used for measurement report trigger. Note the actual value is field value * 0.5 dB")
+             "--meas_trigger_quantitiy_threshold_db",
+             report_params.meas_trigger_quantity_threshold_db,
+             "Measurement trigger quantity threshold in dB used for measurement report trigger of event A1/A2/A4/A5")
+      ->check(CLI::Range(0, 127));
+  add_option(app,
+             "--meas_trigger_quantitiy_threshold_2_db",
+             report_params.meas_trigger_quantity_threshold_2_db,
+             "Measurement trigger quantity threshold 2 in dB used for measurement report trigger of event A5")
+      ->check(CLI::Range(0, 127));
+  add_option(app,
+             "--meas_trigger_quantity_offset_db",
+             report_params.meas_trigger_quantity_offset_db,
+             "Measurement trigger quantity offset in dB used for measurement report trigger of event A3/A6. Note the "
+             "actual value is field value * 0.5 dB")
+
       ->check(CLI::Range(-30, 30));
   add_option(app,
-             "--a3_hysteresis_db",
-             report_params.a3_hysteresis_db,
-             "A3 hysteresis in dB used for measurement report trigger. Note the actual value is field value * 0.5 dB")
+             "--hysteresis_db",
+             report_params.hysteresis_db,
+             "Hysteresis in dB used for measurement report trigger. Note the actual value is field value * 0.5 dB")
       ->check(CLI::Range(0, 30));
   add_option(app,
-             "--a3_time_to_trigger_ms",
-             report_params.a3_time_to_trigger_ms,
-             "Time in ms during which A3 condition must be met before measurement report trigger")
+             "--time_to_trigger_ms",
+             report_params.time_to_trigger_ms,
+             "Time in ms during which a condition must be met before measurement report trigger")
       ->check(CLI::IsMember({0, 40, 64, 80, 100, 128, 160, 256, 320, 480, 512, 640, 1024, 1280, 2560, 5120}));
 }
 
@@ -251,24 +375,13 @@ static void configure_cli11_cu_cp_args(CLI::App& app, cu_cp_unit_config& cu_cp_p
 
   add_option(app, "--max_nof_ues", cu_cp_params.max_nof_ues, "Maximum number of UEs that the CU-CP may accept");
 
+  add_option(app, "--max_nof_drbs_per_ue", cu_cp_params.max_nof_drbs_per_ue, "Maximum number of DRBs per UE")
+      ->capture_default_str()
+      ->check(CLI::Range(1, 29));
+
   add_option(app, "--inactivity_timer", cu_cp_params.inactivity_timer, "UE/PDU Session/DRB inactivity timer in seconds")
       ->capture_default_str()
       ->check(CLI::Range(1, 7200));
-
-  add_option(app, "--plmns", cu_cp_params.plmns, "List of allowed PLMNs");
-  add_option(app, "--tacs", cu_cp_params.tacs, "List of allowed TACs")->check([](const std::string& value) {
-    std::stringstream ss(value);
-    unsigned          tac;
-    ss >> tac;
-
-    // Values 0 and 0xfffffe are reserved.
-    if (tac == 0U || tac == 0xfffffeU) {
-      return "TAC values 0 or 0xfffffe are reserved";
-    }
-
-    return (tac <= 0xffffffU) ? "" : "TAC value out of range";
-  });
-  ;
 
   add_option(app,
              "--pdu_session_setup_timeout",
@@ -276,6 +389,32 @@ static void configure_cli11_cu_cp_args(CLI::App& app, cu_cp_unit_config& cu_cp_p
              "Timeout for the setup of a PDU session after an InitialUeMessage was sent to the core, in "
              "seconds. The timeout must be larger than T310. If the value is reached, the UE will be released")
       ->capture_default_str();
+
+  add_option(app,
+             "--load_plugins",
+             cu_cp_params.load_plugins,
+             "Attempt to load plugin library to enable srsRAN_Enterprise features");
+
+  CLI::App* amf_subcmd = app.add_subcommand("amf", "AMF configuration");
+  configure_cli11_amf_args(*amf_subcmd, cu_cp_params.amf_config);
+
+  // AMF parameters.
+  app.add_option_function<std::vector<std::string>>(
+         "--extra_amfs",
+         [&cu_cp_params](const std::vector<std::string>& values) {
+           cu_cp_params.extra_amfs.resize(values.size());
+
+           for (unsigned i = 0, e = values.size(); i != e; ++i) {
+             CLI::App subapp("CU-CP AMF list");
+             subapp.config_formatter(create_yaml_config_parser());
+             subapp.allow_config_extras(CLI::config_extras_mode::error);
+             configure_cli11_amf_item_args(subapp, cu_cp_params.extra_amfs[i]);
+             std::istringstream ss(values[i]);
+             subapp.parse_from_stream(ss);
+           }
+         },
+         "Sets the list of extra AMFs for the CU-CP to connect to")
+      ->group("");
 
   CLI::App* mobility_subcmd = app.add_subcommand("mobility", "Mobility configuration");
   configure_cli11_mobility_args(*mobility_subcmd, cu_cp_params.mobility_config);
@@ -400,39 +539,6 @@ static void configure_cli11_metrics_args(CLI::App& app, cu_cp_unit_metrics_confi
       ->capture_default_str();
 }
 
-static void configure_cli11_slicing_args(CLI::App& app, s_nssai_t& slice_params)
-{
-  add_option(app, "--sst", slice_params.sst, "Slice Service Type")->capture_default_str()->check(CLI::Range(0, 255));
-  add_option(app, "--sd", slice_params.sd, "Service Differentiator")
-      ->capture_default_str()
-      ->check(CLI::Range(0, 0xffffff));
-}
-
-static void configure_cli11_amf_args(CLI::App& app, cu_cp_unit_amf_config& amf_params)
-{
-  add_option(app, "--addr", amf_params.ip_addr, "AMF IP address");
-  add_option(app, "--port", amf_params.port, "AMF port")->capture_default_str()->check(CLI::Range(20000, 40000));
-  add_option(app,
-             "--bind_addr",
-             amf_params.bind_addr,
-             "Default local IP address interfaces bind to, unless a specific bind address is specified")
-      ->check(CLI::ValidIPV4);
-  add_option(app, "--n2_bind_addr", amf_params.n2_bind_addr, "Local IP address to bind for N2 interface")
-      ->check(CLI::ValidIPV4 | CLI::IsMember({"auto"}));
-  add_option(app, "--n2_bind_interface", amf_params.n2_bind_interface, "Network device to bind for N2 interface")
-      ->capture_default_str();
-  add_option(app, "--sctp_rto_initial", amf_params.sctp_rto_initial, "SCTP initial RTO value");
-  add_option(app, "--sctp_rto_min", amf_params.sctp_rto_min, "SCTP RTO min");
-  add_option(app, "--sctp_rto_max", amf_params.sctp_rto_max, "SCTP RTO max");
-  add_option(app, "--sctp_init_max_attempts", amf_params.sctp_init_max_attempts, "SCTP init max attempts");
-  add_option(app, "--sctp_max_init_timeo", amf_params.sctp_max_init_timeo, "SCTP max init timeout");
-  add_option(app,
-             "--sctp_nodelay",
-             amf_params.sctp_nodelay,
-             "Send SCTP messages as soon as possible without any Nagle-like algorithm");
-  add_option(app, "--no_core", amf_params.no_core, "Allow gNB to run without a core");
-}
-
 void srsran::configure_cli11_with_cu_cp_unit_config_schema(CLI::App& app, cu_cp_unit_config& unit_cfg)
 {
   add_option(app, "--gnb_id", unit_cfg.gnb_id.id, "gNodeB identifier")->capture_default_str();
@@ -440,9 +546,6 @@ void srsran::configure_cli11_with_cu_cp_unit_config_schema(CLI::App& app, cu_cp_
       ->capture_default_str()
       ->check(CLI::Range(22, 32));
   add_option(app, "--ran_node_name", unit_cfg.ran_node_name, "RAN node name")->capture_default_str();
-  // AMF section.
-  CLI::App* amf_subcmd = add_subcommand(app, "amf", "AMF parameters")->configurable();
-  configure_cli11_amf_args(*amf_subcmd, unit_cfg.amf_cfg);
 
   // CU-CP section
   CLI::App* cu_cp_subcmd = add_subcommand(app, "cu_cp", "CU-CP parameters")->configurable();
@@ -476,57 +579,11 @@ void srsran::configure_cli11_with_cu_cp_unit_config_schema(CLI::App& app, cu_cp_
     }
   };
   add_option_cell(app, "--qos", qos_lambda, "Configures RLC and PDCP radio bearers on a per 5QI basis.");
-
-  // Slicing section.
-  auto slicing_lambda = [&unit_cfg](const std::vector<std::string>& values) {
-    // Prepare the slices.
-    unit_cfg.slice_cfg.resize(values.size());
-
-    // Format every slicing setting.
-    for (unsigned i = 0, e = values.size(); i != e; ++i) {
-      CLI::App subapp("Slicing parameters", "Slicing config, item #" + std::to_string(i));
-      subapp.config_formatter(create_yaml_config_parser());
-      subapp.allow_config_extras(CLI::config_extras_mode::capture);
-      configure_cli11_slicing_args(subapp, unit_cfg.slice_cfg[i]);
-      std::istringstream ss(values[i]);
-      subapp.parse_from_stream(ss);
-    }
-  };
-  add_option_cell(app, "--slicing", slicing_lambda, "Network slicing configuration");
 }
 
-static std::vector<std::string> auto_generate_plmns()
-{
-  std::vector<std::string> vec = {"00101"};
-  return vec;
-}
-
-static std::vector<unsigned> auto_generate_tacs()
-{
-  std::vector<unsigned> out_cfg = {7};
-
-  return out_cfg;
-}
-
-void srsran::autoderive_cu_cp_parameters_after_parsing(CLI::App&                app,
-                                                       cu_cp_unit_config&       unit_cfg,
-                                                       std::vector<std::string> plmns,
-                                                       std::vector<unsigned>    tacs)
+void srsran::autoderive_cu_cp_parameters_after_parsing(CLI::App& app, cu_cp_unit_config& unit_cfg)
 {
   auto cu_cp_app = app.get_subcommand_ptr("cu_cp");
-  // No PLMNs defined in the cu_cp section. Use the given ones.
-  if (cu_cp_app->count_all() == 0 || cu_cp_app->count("--plmns") == 0) {
-    srsran_assert(unit_cfg.plmns.empty(), "PLMN list is not empty");
-
-    unit_cfg.plmns = plmns.empty() ? auto_generate_plmns() : std::move(plmns);
-  }
-
-  if (cu_cp_app->count_all() == 0 || cu_cp_app->count("--tacs") == 0) {
-    srsran_assert(unit_cfg.tacs.empty(), "TAC list is not empty");
-
-    unit_cfg.tacs = tacs.empty() ? auto_generate_tacs() : std::move(tacs);
-  }
-
   for (auto& cell : unit_cfg.mobility_config.cells) {
     // Set gNB ID bit length of the neighbor cell to be equal to the current unit gNB ID bit length, if not explicitly
     // set.

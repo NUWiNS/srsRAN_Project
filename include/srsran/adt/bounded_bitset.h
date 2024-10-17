@@ -503,7 +503,7 @@ public:
   /// \return The result of the bitset product.
   /// \remark The current implementation supports only a bitset containing one word. An assertion is triggered if \c
   /// other contains more than one word.
-  template <unsigned Factor>
+  template <unsigned long Factor>
   bounded_bitset<Factor * N> kronecker_product(const bounded_bitset<Factor>& other) const
   {
     static_assert(Factor <= bits_per_word,
@@ -1091,7 +1091,7 @@ private:
   friend struct fmt::formatter<bounded_bitset<N, LowestInfoBitIsMSB>>;
 
   // Capacity of the underlying array in number of words.
-  constexpr static size_t max_nof_words_() noexcept { return (N + bits_per_word - 1) / bits_per_word; }
+  static constexpr size_t max_nof_words_() noexcept { return (N + bits_per_word - 1) / bits_per_word; }
 
   std::array<word_t, max_nof_words_()> buffer   = {0};
   size_t                               cur_size = 0;

@@ -92,7 +92,7 @@ protected:
   void init()
   {
     // add UE to UE manager
-    allocated_ue_index = ue_mng.add_ue(du_index_t::min);
+    allocated_ue_index = ue_mng.add_ue(du_index_t::min, plmn_identity::test_value());
 
     // create RRC UE
     rrc_ue_creation_message rrc_ue_create_msg{};
@@ -120,7 +120,6 @@ protected:
     ue_cfg.meas_timings.push_back(meas_timing);
     ue_cfg.rrc_procedure_timeout_ms = cu_cp_cfg.rrc.rrc_procedure_timeout_ms;
     rrc_ue                          = std::make_unique<rrc_ue_impl>(*rrc_ue_create_msg.f1ap_pdu_notifier,
-                                           rrc_ue_ngap_notifier,
                                            rrc_ue_ngap_notifier,
                                            *rrc_ue_create_msg.rrc_ue_cu_cp_notifier,
                                            *rrc_ue_create_msg.measurement_notifier,
@@ -220,60 +219,59 @@ protected:
     srb_creation_message msg;
     msg.ue_index = allocated_ue_index;
     msg.srb_id   = srb_id_t::srb2;
-    rrc_ue->get_rrc_ue_srb_handler().create_srb(msg);
+    rrc_ue->get_rrc_ue_control_message_handler().create_srb(msg);
   }
 
   void receive_setup_request()
   {
     // inject RRC setup into UE object
-    rrc_ue->get_ul_ccch_pdu_handler().handle_ul_ccch_pdu(byte_buffer::create(rrc_setup_pdu).value());
+    rrc_ue->get_ul_pdu_handler().handle_ul_ccch_pdu(byte_buffer::create(rrc_setup_pdu).value());
   }
 
   void receive_invalid_setup_request()
   {
     // inject corrupted RRC setup into UE object
-    rrc_ue->get_ul_ccch_pdu_handler().handle_ul_ccch_pdu(
-        byte_buffer::create({0x9d, 0xec, 0x89, 0xde, 0x57, 0x66}).value());
+    rrc_ue->get_ul_pdu_handler().handle_ul_ccch_pdu(byte_buffer::create({0x9d, 0xec, 0x89, 0xde, 0x57, 0x66}).value());
   }
 
   void receive_invalid_reestablishment_request(pci_t pci, rnti_t c_rnti)
   {
     // inject RRC Reestablishment Request into UE object
-    rrc_ue->get_ul_ccch_pdu_handler().handle_ul_ccch_pdu(generate_invalid_rrc_reestablishment_request_pdu(pci, c_rnti));
+    rrc_ue->get_ul_pdu_handler().handle_ul_ccch_pdu(generate_invalid_rrc_reestablishment_request_pdu(pci, c_rnti));
   }
 
   void receive_valid_reestablishment_request(pci_t pci, rnti_t c_rnti)
   {
     // inject RRC Reestablishment Request into UE object
-    rrc_ue->get_ul_ccch_pdu_handler().handle_ul_ccch_pdu(generate_valid_rrc_reestablishment_request_pdu(pci, c_rnti));
+    rrc_ue->get_ul_pdu_handler().handle_ul_ccch_pdu(generate_valid_rrc_reestablishment_request_pdu(pci, c_rnti));
   }
 
   void receive_valid_reestablishment_request_with_cause_recfg_fail(pci_t pci, rnti_t c_rnti)
   {
     // inject RRC Reestablishment Request into UE object
-    rrc_ue->get_ul_ccch_pdu_handler().handle_ul_ccch_pdu(generate_valid_rrc_reestablishment_request_pdu(
+    rrc_ue->get_ul_pdu_handler().handle_ul_ccch_pdu(generate_valid_rrc_reestablishment_request_pdu(
         pci, c_rnti, "0111011100001000", asn1::rrc_nr::reest_cause_opts::options::recfg_fail));
   }
 
   void receive_reestablishment_complete()
   {
     // inject RRC Reestablishment complete
-    rrc_ue->get_ul_dcch_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1,
-                                                         byte_buffer::create(rrc_reest_complete_pdu).value());
+    rrc_ue->get_ul_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1,
+                                                    byte_buffer::create(rrc_reest_complete_pdu).value());
   }
 
   void receive_setup_complete()
   {
     // inject RRC setup complete
-    rrc_ue->get_ul_dcch_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1,
-                                                         byte_buffer::create(rrc_setup_complete_pdu).value());
+    rrc_ue->get_ul_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1,
+                                                    byte_buffer::create(rrc_setup_complete_pdu).value());
   }
 
   void receive_corrupted_setup_complete()
   {
     // inject corrupted RRC setup complete
-    rrc_ue->get_ul_dcch_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1,
-                                                         byte_buffer::create(corrupted_rrc_setup_complete_pdu).value());
+    rrc_ue->get_ul_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1,
+                                                    byte_buffer::create(corrupted_rrc_setup_complete_pdu).value());
   }
 
   void send_dl_info_transfer(byte_buffer nas_pdu)
@@ -317,8 +315,7 @@ protected:
   void receive_smc_complete()
   {
     // inject RRC SMC complete into UE object
-    rrc_ue->get_ul_dcch_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1,
-                                                         byte_buffer::create(rrc_smc_complete_pdu).value());
+    rrc_ue->get_ul_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1, byte_buffer::create(rrc_smc_complete_pdu).value());
   }
 
   void check_smc_pdu() { ASSERT_EQ(rrc_ue_f1ap_notifier.last_rrc_pdu, byte_buffer::create(rrc_smc_pdu).value()); }
@@ -337,7 +334,7 @@ protected:
     byte_buffer ul_dcch_msg_pdu = byte_buffer::create(span<uint8_t>{rrc_ue_capability_information_pdu}).value();
 
     // inject RRC UE capability information into UE object
-    rrc_ue->get_ul_dcch_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1, std::move(ul_dcch_msg_pdu));
+    rrc_ue->get_ul_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1, std::move(ul_dcch_msg_pdu));
   }
 
   void check_rrc_reconfig_pdu() { ASSERT_EQ(rrc_ue_f1ap_notifier.last_rrc_pdu, rrc_reconfig_pdu); }
@@ -345,8 +342,8 @@ protected:
   void receive_reconfig_complete()
   {
     // inject RRC Reconfiguration complete into UE object
-    rrc_ue->get_ul_dcch_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1,
-                                                         byte_buffer::create(rrc_reconfig_complete_pdu).value());
+    rrc_ue->get_ul_pdu_handler().handle_ul_dcch_pdu(srb_id_t::srb1,
+                                                    byte_buffer::create(rrc_reconfig_complete_pdu).value());
   }
 
   void add_ue_reestablishment_context(ue_index_t ue_index)

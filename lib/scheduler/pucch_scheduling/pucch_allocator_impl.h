@@ -178,12 +178,18 @@ private:
                           const ue_cell_configuration&  ue_cell_cfg,
                           unsigned                      csi_part1_bits);
 
+  // Update the grants data for the case in which multiplexing is not needed.
+  std::optional<unsigned> allocate_without_multiplexing(cell_slot_resource_allocator& pucch_slot_alloc,
+                                                        pucch_uci_bits                new_bits,
+                                                        ue_grants&                    current_grants,
+                                                        const ue_cell_configuration&  ue_cell_cfg);
+
   // Implements the main steps of the multiplexing procedure as defined in TS 38.213, Section 9.2.5.
   std::optional<unsigned> multiplex_and_allocate_pucch(cell_slot_resource_allocator& pucch_slot_alloc,
                                                        pucch_uci_bits                new_bits,
                                                        ue_grants&                    current_grants,
                                                        const ue_cell_configuration&  ue_cell_cfg,
-                                                       bool                          preserve_res_indicator = false);
+                                                       std::optional<uint8_t>        preserve_res_indicator);
 
   // Computes which resources are expected to be sent, depending on the UCI bits to be sent, before any multiplexing.
   std::optional<pucch_grant_list> get_pucch_res_pre_multiplexing(slot_point                   sl_tx,
@@ -191,26 +197,19 @@ private:
                                                                  ue_grants                    ue_current_grants,
                                                                  const ue_cell_configuration& ue_cell_cfg);
 
-  // Update the grants data for the case in which multiplexing is not needed.
-  pucch_grant_list update_grants_no_multiplexing(slot_point                   sl_tx,
-                                                 rnti_t                       crnti,
-                                                 pucch_grant_list             candidate_grants,
-                                                 const ue_cell_configuration& ue_cell_cfg,
-                                                 ue_grants                    ue_current_grants);
-
   // Execute the multiplexing algorithm as defined in TS 38.213, Section 9.2.5.
   pucch_grant_list multiplex_resources(slot_point                   sl_tx,
                                        rnti_t                       crnti,
                                        pucch_grant_list             candidate_grants,
                                        const ue_cell_configuration& ue_cell_cfg,
-                                       bool                         preserve_res_indicator = false);
+                                       std::optional<uint8_t>       preserve_res_indicator);
 
   // Applies the multiplexing rules depending on the PUCCH resource format, as per TS 38.213, Section 9.2.5.1/2.
   std::optional<pucch_grant> merge_pucch_resources(span<const pucch_grant> resources_to_merge,
                                                    slot_point              slot_harq,
                                                    rnti_t                  crnti,
                                                    const pucch_config&     pucch_cfg,
-                                                   bool                    preserve_res_indicator = false);
+                                                   std::optional<uint8_t>  preserve_res_indicator);
 
   // Allocate the PUCCH PDUs in the scheduler output, depending on the new PUCCH grants to be transmitted, and depending
   // on the PUCCH PDUs currently allocated.
@@ -259,7 +258,7 @@ private:
   // \brief Ring of PUCCH allocations indexed by slot.
   circular_array<slot_pucch_grants, cell_resource_allocator::RING_ALLOCATOR_SIZE> pucch_grants_alloc_grid;
 
-  constexpr static unsigned PUCCH_FORMAT_0_1_NOF_PRBS{1};
+  static constexpr unsigned PUCCH_FORMAT_0_1_NOF_PRBS{1};
   const cell_configuration& cell_cfg;
   const unsigned            max_pucch_grants_per_slot;
   const unsigned            max_ul_grants_per_slot;

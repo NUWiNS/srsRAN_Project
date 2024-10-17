@@ -21,7 +21,7 @@
  */
 
 #include "srsran/scheduler/config/sched_cell_config_helpers.h"
-#include "../../du_manager/ran_resource_management/pucch_resource_generator.h"
+#include "../../du/du_high/du_manager/ran_resource_management/pucch_resource_generator.h"
 #include "srsran/scheduler/config/serving_cell_config_factory.h"
 #include "srsran/support/error_handling.h"
 
@@ -29,7 +29,7 @@ using namespace srsran;
 using namespace srsran::config_helpers;
 
 std::vector<sched_grid_resource>
-srsran::config_helpers::build_pucch_guardbands_list(const pucch_builder_params& user_params, unsigned bwp_size)
+srsran::config_helpers::build_pucch_guardbands_list(const srs_du::pucch_builder_params& user_params, unsigned bwp_size)
 {
   // Compute the cell PUCCH resource list, depending on which parameter that has been passed.
   std::vector<pucch_resource> res_list = srs_du::generate_cell_pucch_res_list(
@@ -39,7 +39,8 @@ srsran::config_helpers::build_pucch_guardbands_list(const pucch_builder_params& 
           user_params.nof_csi_resources,
       user_params.f0_or_f1_params,
       user_params.f2_params,
-      bwp_size);
+      bwp_size,
+      user_params.max_nof_symbols);
 
   srsran_assert(not res_list.empty(), "The PUCCH resource list cannot be empty");
 

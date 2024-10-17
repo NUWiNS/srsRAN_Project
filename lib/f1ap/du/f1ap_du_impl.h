@@ -26,7 +26,7 @@
 #include "f1ap_du_connection_handler.h"
 #include "f1ap_du_context.h"
 #include "srsran/asn1/f1ap/f1ap.h"
-#include "srsran/du_high/du_high_executor_mapper.h"
+#include "srsran/du/du_high/du_high_executor_mapper.h"
 #include "srsran/f1ap/du/f1ap_du.h"
 #include <memory>
 
@@ -110,7 +110,10 @@ private:
 
   bool handle_rx_message_gnb_cu_ue_f1ap_id(f1ap_du_ue& ue, gnb_cu_ue_f1ap_id_t cu_ue_id);
 
-  void send_error_indication(const asn1::f1ap::cause_c& cause);
+  void send_error_indication(const asn1::f1ap::cause_c&         cause,
+                             std::optional<uint8_t>             transaction_id = {},
+                             std::optional<gnb_du_ue_f1ap_id_t> du_ue_id       = {},
+                             std::optional<gnb_cu_ue_f1ap_id_t> cu_ue_id       = {});
 
   /// \brief Handle Paging as per TS38.473, Section 8.7.
   void handle_paging_request(const asn1::f1ap::paging_s& msg);

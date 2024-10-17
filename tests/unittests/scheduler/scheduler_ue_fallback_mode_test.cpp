@@ -38,15 +38,15 @@ public:
     scheduler_test_bench(4, duplx_mode == duplex_mode::FDD ? subcarrier_spacing::kHz15 : subcarrier_spacing::kHz30)
   {
     if (duplx_mode == duplex_mode::TDD) {
-      builder_params.dl_arfcn       = 520002;
+      builder_params.dl_f_ref_arfcn = 520002;
       builder_params.scs_common     = subcarrier_spacing::kHz30;
-      builder_params.band           = band_helper::get_band_from_dl_arfcn(builder_params.dl_arfcn);
-      builder_params.channel_bw_mhz = bs_channel_bandwidth_fr1::MHz10;
+      builder_params.band           = band_helper::get_band_from_dl_arfcn(builder_params.dl_f_ref_arfcn);
+      builder_params.channel_bw_mhz = bs_channel_bandwidth::MHz10;
       const unsigned nof_crbs       = band_helper::get_n_rbs_from_bw(
           builder_params.channel_bw_mhz, builder_params.scs_common, band_helper::get_freq_range(*builder_params.band));
       static const uint8_t                                   ss0_idx = 0;
       std::optional<band_helper::ssb_coreset0_freq_location> ssb_freq_loc =
-          band_helper::get_ssb_coreset0_freq_location(builder_params.dl_arfcn,
+          band_helper::get_ssb_coreset0_freq_location(builder_params.dl_f_ref_arfcn,
                                                       *builder_params.band,
                                                       nof_crbs,
                                                       builder_params.scs_common,
@@ -136,7 +136,7 @@ public:
 TEST_P(scheduler_con_res_msg4_test,
        when_conres_ce_and_srb_pdu_are_enqueued_then_tc_rnti_is_used_and_multiplexing_with_csi_rs_is_avoided)
 {
-  const static unsigned msg4_size = 128;
+  static const unsigned msg4_size = 128;
 
   // Enqueue several RACH indications, so that RARs that need to be scheduled may fight for RB space with the Msg4.
   enqueue_random_number_of_rach_indications();
@@ -174,10 +174,10 @@ TEST_P(scheduler_con_res_msg4_test,
 
 TEST_P(scheduler_con_res_msg4_test, while_ue_is_in_fallback_then_common_pucch_is_used)
 {
-  const static unsigned msg4_size = 128;
+  static const unsigned msg4_size = 128;
   // TODO: Increase the crnti message size, once PUCCH scheduler handles multiple HARQ-ACKs falling in the same slot
   //  in fallback mode.
-  const static unsigned crnti_msg_size = 8;
+  static const unsigned crnti_msg_size = 8;
 
   // Enqueue ConRes CE + Msg4.
   this->sched->handle_dl_mac_ce_indication(dl_mac_ce_indication{ue_index, lcid_dl_sch_t::UE_CON_RES_ID});
@@ -280,7 +280,7 @@ TEST_P(scheduler_con_res_msg4_test, while_ue_is_in_fallback_then_common_pucch_is
 
 TEST_P(scheduler_con_res_msg4_test, while_ue_is_in_fallback_then_common_ss_is_used)
 {
-  const static unsigned msg4_size = 128;
+  static const unsigned msg4_size = 128;
 
   // Enqueue ConRes CE + Msg4.
   this->sched->handle_dl_mac_ce_indication(dl_mac_ce_indication{ue_index, lcid_dl_sch_t::UE_CON_RES_ID});

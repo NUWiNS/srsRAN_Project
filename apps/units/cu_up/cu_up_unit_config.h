@@ -24,7 +24,7 @@
 
 #include "apps/units/cu_up/cu_up_unit_pcap_config.h"
 #include "cu_up_unit_logger_config.h"
-#include "srsran/ran/five_qi.h"
+#include "srsran/ran/qos/five_qi.h"
 
 namespace srsran {
 
@@ -38,12 +38,12 @@ struct cu_up_unit_metrics_config {
 };
 
 struct cu_up_unit_upf_config {
-  std::string bind_addr         = "127.0.0.1";
-  std::string n3_bind_addr      = "auto";
-  std::string n3_bind_interface = "auto";
-  std::string n3_ext_addr       = "auto";
-  int         udp_rx_max_msgs   = 256;
-  bool        no_core           = false;
+  std::string bind_addr       = "auto";
+  std::string bind_interface  = "auto";
+  std::string ext_addr        = "auto";
+  int         udp_rx_max_msgs = 256;
+  float       pool_threshold  = 0.9;
+  bool        no_core         = false;
 };
 
 /// F1-U configuration at CU_UP side

@@ -26,7 +26,16 @@
 #include "srsran/support/async/async_task.h"
 
 namespace srsran {
+
+class task_executor;
+
 namespace srs_du {
+
+class f1ap_du;
+class du_high_ue_executor_mapper;
+class f1ap_du_configurator;
+class f1ap_du_paging_notifier;
+class f1c_connection_client;
 
 /// \brief This interface represents the data entry point of the transmitting side of a F1-C bearer of the DU.
 /// The lower layer will use this class to pass F1AP SDUs (e.g. PDCP PDUs/RLC SDUs) into the F1-C bearer towards CU-CP.
@@ -50,7 +59,7 @@ public:
   /// the lower layers (i.e. by the RLC).
   ///
   /// \param highest_sn Highest transmitted PDCP PDU sequence number.
-  virtual void handle_transmit_notification(uint32_t highest_pdcp_sn) = 0;
+  virtual void handle_transmit_notification(uint32_t highest_pdcp_sn, uint32_t queue_free_bytes) = 0;
 
   /// \brief Informs the F1-C bearer about the highest PDCP PDU sequence number that was successfully
   /// delivered in sequence towards the UE.
@@ -70,14 +79,20 @@ public:
   virtual void handle_pdu(byte_buffer pdu) = 0;
 
   /// Handle Rx PDU that is pushed to the F1AP from the F1-C and await its delivery (ACK) in the lower layers.
-  virtual async_task<void> handle_pdu_and_await_delivery(byte_buffer pdu) = 0;
+  virtual async_task<bool> handle_pdu_and_await_delivery(byte_buffer pdu, std::chrono::milliseconds time_to_wait) = 0;
 
   /// Handle Rx PDU that is pushed to the F1AP from the F1-C and await its transmission by the lower layers.
-  virtual async_task<void> handle_pdu_and_await_transmission(byte_buffer pdu) = 0;
+  virtual async_task<bool> handle_pdu_and_await_transmission(byte_buffer               pdu,
+                                                             std::chrono::milliseconds time_to_wait) = 0;
 };
 
 class f1c_bearer : public f1c_tx_sdu_handler, public f1c_tx_delivery_handler, public f1c_rx_pdu_handler
 {};
 
+std::unique_ptr<f1ap_du> create_f1ap(f1c_connection_client&      f1c_client_handler,
+                                     f1ap_du_configurator&       du_mng,
+                                     task_executor&              ctrl_exec,
+                                     du_high_ue_executor_mapper& ue_exec_mapper,
+                                     f1ap_du_paging_notifier&    paging_notifier);
 } // namespace srs_du
 } // namespace srsran

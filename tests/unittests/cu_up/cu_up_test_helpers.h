@@ -253,6 +253,8 @@ public:
     removed_ul_teid_list.push_back(ul_up_tnl_info.gtp_teid);
   }
 
+  expected<std::string> get_cu_bind_address() const override { return "127.0.0.1"; }
+
   std::list<gtpu_teid_t> created_ul_teid_list  = {};
   std::list<gtpu_teid_t> attached_ul_teid_list = {};
   std::list<gtpu_teid_t> removed_ul_teid_list  = {};
@@ -269,7 +271,7 @@ public:
   }
 };
 
-inline e1ap_message generate_bearer_context_setup_request(unsigned int cu_cp_ue_e1ap_id)
+inline e1ap_message generate_bearer_context_setup_request(unsigned cu_cp_ue_e1ap_id)
 {
   e1ap_message bearer_context_setup_request = {};
 

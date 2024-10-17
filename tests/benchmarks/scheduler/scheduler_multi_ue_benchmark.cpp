@@ -20,13 +20,12 @@
  *
  */
 
-#include "lib/du_manager/ran_resource_management/du_pucch_resource_manager.h"
+#include "lib/du/du_high/du_manager/ran_resource_management/du_pucch_resource_manager.h"
 #include "scheduler_test_doubles.h"
 #include "tests/unittests/scheduler/test_utils/config_generators.h"
 #include "srsran/adt/circular_array.h"
 #include "srsran/scheduler/scheduler_factory.h"
 #include "srsran/support/benchmark_utils.h"
-#include "srsran/support/math/lcm.h"
 #include <getopt.h>
 
 using namespace srsran;
@@ -236,7 +235,7 @@ private:
   sched_dummy_metric_notifier                      metric_notif;
   scheduler_expert_config                          expert_cfg;
   cell_config_builder_params                       builder_params;
-  std::vector<du_cell_config>                      du_cell_cfgs;
+  std::vector<srs_du::du_cell_config>              du_cell_cfgs;
   srslog::basic_logger&                            logger;
   std::optional<srs_du::du_pucch_resource_manager> pucch_res_mng;
 
@@ -255,9 +254,9 @@ void benchmark_tdd(benchmarker& bm, const bench_params& params)
   sched_cfg.ue.max_pdcch_alloc_attempts_per_slot = params.max_dl_grants_per_slot;
 
   cell_config_builder_params builder_params{};
-  builder_params.dl_arfcn             = 520002;
+  builder_params.dl_f_ref_arfcn       = 520002;
   builder_params.band                 = nr_band::n41;
-  builder_params.channel_bw_mhz       = bs_channel_bandwidth_fr1::MHz100;
+  builder_params.channel_bw_mhz       = bs_channel_bandwidth::MHz100;
   builder_params.scs_common           = subcarrier_spacing::kHz30;
   builder_params.tdd_ul_dl_cfg_common = tdd_ul_dl_config_common{builder_params.scs_common, {10, 7, 8, 2, 0}};
   builder_params.nof_dl_ports         = 4;

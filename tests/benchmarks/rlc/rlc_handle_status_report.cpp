@@ -46,7 +46,7 @@ public:
   rlc_tx_am_test_frame(rlc_am_sn_size sn_size_) : sn_size(sn_size_), status(sn_size_) {}
 
   // rlc_tx_upper_layer_data_notifier interface
-  void on_transmitted_sdu(uint32_t max_tx_pdcp_sn) override {}
+  void on_transmitted_sdu(uint32_t max_tx_pdcp_sn, uint32_t queue_free_bytes) override {}
   void on_delivered_sdu(uint32_t max_deliv_pdcp_sn) override {}
   void on_retransmitted_sdu(uint32_t max_retx_pdcp_sn) override {}
   void on_delivered_retransmitted_sdu(uint32_t max_deliv_retx_pdcp_sn) override {}
@@ -102,14 +102,15 @@ void benchmark_status_pdu_handling(rlc_am_status_pdu status, const bench_params&
 
   // Set Tx config
   rlc_tx_am_config config;
-  config.sn_field_length = rlc_am_sn_size::size18bits;
-  config.pdcp_sn_len     = pdcp_sn_size::size18bits;
-  config.t_poll_retx     = 45;
-  config.max_retx_thresh = 4;
-  config.poll_pdu        = 4;
-  config.poll_byte       = 25;
-  config.queue_size      = 4096;
-  config.max_window      = 0;
+  config.sn_field_length  = rlc_am_sn_size::size18bits;
+  config.pdcp_sn_len      = pdcp_sn_size::size18bits;
+  config.t_poll_retx      = 45;
+  config.max_retx_thresh  = 4;
+  config.poll_pdu         = 4;
+  config.poll_byte        = 25;
+  config.queue_size       = 4096;
+  config.queue_size_bytes = 4096 * 1507;
+  config.max_window       = 0;
 
   // Create test frame
   auto tester = std::make_unique<rlc_tx_am_test_frame>(config.sn_field_length);
@@ -127,7 +128,7 @@ void benchmark_status_pdu_handling(rlc_am_status_pdu status, const bench_params&
   null_rlc_pcap pcap;
 
   auto metrics_agg = std::make_unique<rlc_metrics_aggregator>(
-      gnb_du_id_t{}, du_ue_index_t{}, rb_id_t{}, timer_duration{1000}, tester.get(), ue_worker);
+      gnb_du_id_t{}, du_ue_index_t{}, rb_id_t{}, timer_duration{0}, tester.get(), ue_worker);
 
   // Run benchmark
   auto context = [&rlc, &tester, &metrics_agg, config, &timers, &pcell_worker, &ue_worker, &pcap]() {
@@ -139,7 +140,6 @@ void benchmark_status_pdu_handling(rlc_am_status_pdu status, const bench_params&
                                              *tester,
                                              *tester,
                                              *metrics_agg,
-                                             false,
                                              pcap,
                                              pcell_worker,
                                              ue_worker,

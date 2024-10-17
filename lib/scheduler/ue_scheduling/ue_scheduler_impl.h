@@ -22,11 +22,12 @@
 
 #pragma once
 
+#include "../cell/cell_harq_manager.h"
 #include "../logging/scheduler_event_logger.h"
 #include "../policy/scheduler_policy.h"
 #include "../pucch_scheduling/pucch_guardbands_scheduler.h"
 #include "../slicing/slice_scheduler.h"
-#include "../support/slot_sync_point.h"
+#include "../srs/srs_scheduler_impl.h"
 #include "../uci_scheduling/uci_scheduler_impl.h"
 #include "ue_cell_grid_allocator.h"
 #include "ue_event_manager.h"
@@ -34,6 +35,7 @@
 #include "ue_repository.h"
 #include "ue_scheduler.h"
 #include "srsran/scheduler/config/scheduler_expert_config.h"
+#include <mutex>
 
 namespace srsran {
 
@@ -42,14 +44,12 @@ namespace srsran {
 class ue_scheduler_impl final : public ue_scheduler
 {
 public:
-  explicit ue_scheduler_impl(const scheduler_ue_expert_config& expert_cfg_,
-                             sched_configuration_notifier&     mac_notif,
-                             scheduler_metrics_handler&        metric_handler);
+  explicit ue_scheduler_impl(const scheduler_ue_expert_config& expert_cfg_);
 
   void add_cell(const ue_scheduler_cell_params& params) override;
 
   /// Schedule UE DL grants for a given {slot, cell}.
-  void run_slot(slot_point slot_tx, du_cell_index_t cell_index) override;
+  void run_slot(slot_point slot_tx) override;
 
   void handle_error_indication(slot_point                            sl_tx,
                                du_cell_index_t                       cell_index,
@@ -73,6 +73,9 @@ private:
   struct cell {
     cell_resource_allocator* cell_res_alloc;
 
+    /// HARQ pool for this cell.
+    cell_harq_manager cell_harqs;
+
     /// PUCCH scheduler.
     uci_scheduler_impl uci_sched;
 
@@ -82,13 +85,13 @@ private:
     /// Slice scheduler.
     slice_scheduler slice_sched;
 
-    cell(const scheduler_ue_expert_config& expert_cfg, const ue_scheduler_cell_params& params, ue_repository& ues) :
-      cell_res_alloc(params.cell_res_alloc),
-      uci_sched(params.cell_res_alloc->cfg, *params.uci_alloc, ues),
-      fallback_sched(expert_cfg, params.cell_res_alloc->cfg, *params.pdcch_sched, *params.pucch_alloc, ues),
-      slice_sched(params.cell_res_alloc->cfg, ues)
-    {
-    }
+    /// SRS scheduler
+    srs_scheduler_impl srs_sched;
+
+    cell(const scheduler_ue_expert_config& expert_cfg,
+         const ue_scheduler_cell_params&   params,
+         ue_repository&                    ues,
+         cell_metrics_handler&             metrics_handler);
   };
 
   // Helper to catch simultaneous PUCCH and PUSCH grants allocated for the same UE.
@@ -97,7 +100,8 @@ private:
 
   const scheduler_ue_expert_config& expert_cfg;
 
-  std::array<std::unique_ptr<cell>, MAX_NOF_DU_CELLS> cells;
+  // List of cells of the UE scheduler.
+  slotted_array<cell, MAX_NOF_DU_CELLS> cells;
 
   /// Scheduling Strategy.
   ue_resource_grid_view ue_res_grid_view;
@@ -111,8 +115,11 @@ private:
   /// Processor of UE input events.
   ue_event_manager event_mng;
 
-  /// Mutex used to lock carriers for joint carrier scheduling.
-  slot_sync_point sync_point;
+  // Mutex to lock cells of the same cell group (when CA enabled) for joint carrier scheduling
+  std::mutex cell_group_mutex;
+
+  // Last slot run.
+  slot_point last_sl_ind;
 
   srslog::basic_logger& logger;
 };

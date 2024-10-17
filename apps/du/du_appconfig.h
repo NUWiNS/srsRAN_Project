@@ -41,9 +41,10 @@ struct f1ap_appconfig {
 };
 
 struct nru_appconfig {
-  unsigned pdu_queue_size = 2048;
-  /// IP address to bind the F1-U interface to.
-  std::string bind_address = "127.0.10.2";
+  unsigned    pdu_queue_size = 2048;
+  std::string bind_address   = "127.0.10.2";
+  std::string ext_addr       = "auto"; // External address advertised by the F1-U interface
+  float       pool_threshold = 0.9;
 };
 
 /// Metrics report configuration.

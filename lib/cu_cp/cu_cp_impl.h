@@ -23,7 +23,6 @@
 #pragma once
 
 #include "adapters/cell_meas_manager_adapters.h"
-#include "adapters/cu_cp_adapters.h"
 #include "adapters/du_processor_adapters.h"
 #include "adapters/e1ap_adapters.h"
 #include "adapters/mobility_manager_adapters.h"
@@ -34,17 +33,30 @@
 #include "cu_cp_impl_interface.h"
 #include "cu_up_processor/cu_up_processor_repository.h"
 #include "du_processor/du_processor_repository.h"
-#include "paging/paging_message_handler.h"
-#include "routine_managers/cu_cp_routine_manager.h"
+#include "ngap_repository.h"
 #include "ue_manager/ue_manager_impl.h"
 #include "srsran/cu_cp/cu_cp_configuration.h"
 #include "srsran/cu_cp/cu_cp_types.h"
 #include "srsran/f1ap/cu_cp/f1ap_cu.h"
+#include "srsran/ran/plmn_identity.h"
+#include <dlfcn.h>
 #include <memory>
 #include <unordered_map>
 
 namespace srsran {
 namespace srs_cu_cp {
+
+class cu_cp_common_task_scheduler : public common_task_scheduler
+{
+public:
+  cu_cp_common_task_scheduler() : main_ctrl_loop(128) {}
+
+  bool schedule_async_task(async_task<void> task) override { return main_ctrl_loop.schedule(std::move(task)); }
+
+private:
+  // cu-cp task event loop
+  fifo_async_task_scheduler main_ctrl_loop;
+};
 
 class cu_cp_impl final : public cu_cp,
                          public cu_cp_impl_interface,
@@ -59,10 +71,9 @@ public:
   void stop() override;
 
   // NGAP interface
-  ngap_message_handler& get_ngap_message_handler() override;
-  ngap_event_handler&   get_ngap_event_handler() override;
+  ngap_message_handler* get_ngap_message_handler(const plmn_identity& plmn) override;
 
-  bool amf_is_connected() override { return controller->amf_connection_handler().is_amf_connected(); };
+  bool amfs_are_connected() override;
 
   // CU-UP handler
   void handle_bearer_context_inactivity_notification(const cu_cp_inactivity_notification& msg) override;
@@ -138,13 +149,6 @@ public:
 
 private:
   // Handling of DU events.
-  void handle_du_processor_creation(du_index_t                       du_index,
-                                    f1ap_ue_context_removal_handler& f1ap_handler,
-                                    f1ap_statistics_handler&         f1ap_statistic_handler,
-                                    rrc_ue_handler&                  rrc_handler,
-                                    rrc_du_statistics_handler&       rrc_statistic_handler) override;
-  void handle_du_processor_removal(du_index_t du_index) override;
-
   void handle_rrc_ue_creation(ue_index_t ue_index, rrc_ue_interface& rrc_ue) override;
 
   byte_buffer handle_target_cell_sib1_required(du_index_t du_index, nr_cell_global_id_t cgi) override;
@@ -165,18 +169,13 @@ private:
   srslog::basic_logger& logger = srslog::fetch_basic_logger("CU-CP");
 
   // Components
-  std::unique_ptr<ngap_interface> ngap_entity;
-
   ue_manager ue_mng;
 
   std::unique_ptr<mobility_manager> mobility_mng;
 
   cell_meas_manager cell_meas_mng; // cell measurement manager
 
-  cu_cp_routine_manager routine_mng;
-
-  // CU-CP to RRC DU adapters
-  std::map<du_index_t, cu_cp_rrc_du_adapter> rrc_du_adapters;
+  cu_cp_common_task_scheduler common_task_sched;
 
   // DU repository to Node Manager adapter.
   du_processor_cu_cp_connection_adapter conn_notifier;
@@ -196,9 +195,6 @@ private:
   // RRC DU to CU-CP adapters
   rrc_du_cu_cp_adapter rrc_du_cu_cp_notifier;
 
-  // RRC UE to NGAP adapter
-  rrc_ue_ngap_adapter rrc_ue_ngap_notifier;
-
   // DU connections being managed by the CU-CP.
   du_processor_repository du_db;
 
@@ -208,6 +204,9 @@ private:
   // Handler of paging messages.
   paging_message_handler paging_handler;
 
+  // AMF connections beeing managed by the CU-CP.
+  std::unique_ptr<ngap_repository> ngap_db;
+
   // Handler of the CU-CP connections to other remote nodes (e.g. AMF, CU-UPs, DUs).
   std::unique_ptr<cu_cp_controller> controller;
 
@@ -216,6 +215,11 @@ private:
   unique_timer statistics_report_timer;
 
   std::atomic<bool> stopped{false};
+
+  // Plug-ins
+  start_ngap_handover_preparation_procedure_func start_ho_prep_func = nullptr;
+  connect_amfs_func                              connect_amfs       = nullptr;
+  disconnect_amfs_func                           disconnect_amfs    = nullptr;
 };
 
 } // namespace srs_cu_cp

@@ -26,20 +26,83 @@
 
 using namespace srsran;
 
-static void fill_cu_cp_amf_section(YAML::Node node, const cu_cp_unit_amf_config& config)
+static YAML::Node build_cu_cp_tai_slice_section(const s_nssai_t& config)
 {
+  YAML::Node node;
+
+  node["sst"] = config.sst;
+  if (config.sd) {
+    node["sd"] = config.sd.value();
+  }
+
+  return node;
+}
+
+static YAML::Node build_cu_cp_plmn_list_section(const cu_cp_unit_plmn_item& config)
+{
+  YAML::Node node;
+
+  node["plmn"] = config.plmn_id;
+  for (const auto& slice : config.tai_slice_support_list) {
+    node["tai_slice_support_list"] = build_cu_cp_tai_slice_section(slice);
+  }
+
+  return node;
+}
+
+static YAML::Node build_cu_cp_supported_tas_section(const cu_cp_unit_supported_ta_item& config)
+{
+  YAML::Node node;
+
+  node["tac"] = config.tac;
+  for (const auto& plmn_item : config.plmn_list) {
+    node["plmn_list"] = build_cu_cp_plmn_list_section(plmn_item);
+  }
+
+  return node;
+}
+
+static YAML::Node build_cu_cp_extra_amfs_item_section(const cu_cp_unit_amf_config_item& config)
+{
+  YAML::Node node;
+
   node["addr"]                   = config.ip_addr;
   node["port"]                   = config.port;
   node["bind_addr"]              = config.bind_addr;
-  node["n2_bind_addr"]           = config.n2_bind_addr;
-  node["n2_bind_interface"]      = config.n2_bind_interface;
+  node["bind_interface"]         = config.bind_interface;
   node["sctp_rto_initial"]       = config.sctp_rto_initial;
   node["sctp_rto_min"]           = config.sctp_rto_min;
   node["sctp_rto_max"]           = config.sctp_rto_max;
   node["sctp_init_max_attempts"] = config.sctp_init_max_attempts;
   node["sctp_max_init_timeo"]    = config.sctp_max_init_timeo;
   node["sctp_nodelay"]           = config.sctp_nodelay;
-  node["no_core"]                = config.no_core;
+
+  for (const auto& ta : config.supported_tas) {
+    node["supported_tracking_areas"] = build_cu_cp_supported_tas_section(ta);
+  }
+
+  return node;
+}
+
+static YAML::Node build_cu_cp_extra_amfs_section(const std::vector<cu_cp_unit_amf_config_item>& amfs)
+{
+  YAML::Node node;
+
+  for (const auto& amf : amfs) {
+    node["extra_amfs"] = build_cu_cp_extra_amfs_item_section(amf);
+  }
+
+  return node;
+}
+
+static YAML::Node build_cu_cp_amf_section(const cu_cp_unit_amf_config& config)
+{
+  YAML::Node node;
+
+  node["no_core"] = config.no_core;
+  node["amf"]     = build_cu_cp_extra_amfs_item_section(config.amf);
+
+  return node;
 }
 
 static YAML::Node build_cu_cp_mobility_ncells_section(const cu_cp_unit_neighbor_cell_config_item& config)
@@ -98,21 +161,31 @@ static YAML::Node build_cu_cp_mobility_report_section(const cu_cp_unit_report_co
 {
   YAML::Node node;
 
-  node["report_cfg_id"]  = config.report_cfg_id;
-  node["report_type"]    = config.report_type;
-  node["a3_report_type"] = config.a3_report_type;
-  if (config.report_interval_ms) {
-    node["report_interval_ms"] = config.report_interval_ms.value();
+  node["report_cfg_id"] = config.report_cfg_id;
+  node["report_type"]   = config.report_type;
+  if (config.event_triggered_report_type) {
+    node["event_triggered_report_type"] = config.event_triggered_report_type.value();
+    if (config.meas_trigger_quantity_threshold_db) {
+      node["meas_trigger_quantity_threshold_db"] = config.meas_trigger_quantity_threshold_db.value();
+    }
+    if (config.meas_trigger_quantity_threshold_2_db) {
+      node["meas_trigger_quantity_threshold_2_db"] = config.meas_trigger_quantity_threshold_2_db.value();
+    }
+    if (config.meas_trigger_quantity_offset_db) {
+      node["meas_trigger_quantity_offset_db"] = config.meas_trigger_quantity_offset_db.value();
+    }
+    if (config.hysteresis_db) {
+      node["hysteresis_db"] = config.hysteresis_db.value();
+    }
+    if (config.meas_trigger_quantity) {
+      node["meas_trigger_quantity"] = config.meas_trigger_quantity.value();
+    }
+    if (config.time_to_trigger_ms) {
+      node["time_to_trigger_ms"] = config.time_to_trigger_ms.value();
+    }
   }
-  if (config.a3_offset_db) {
-    node["a3_offset_db"] = config.a3_offset_db.value();
-  }
-  if (config.a3_hysteresis_db) {
-    node["a3_hysteresis_db"] = config.a3_hysteresis_db.value();
-  }
-  if (config.a3_time_to_trigger_ms) {
-    node["a3_time_to_trigger_ms"] = config.a3_time_to_trigger_ms.value();
-  }
+
+  node["report_interval_ms"] = config.report_interval_ms;
 
   return node;
 }
@@ -170,22 +243,16 @@ static YAML::Node build_cu_cp_section(const cu_cp_unit_config& config)
   node["max_nof_dus"]               = config.max_nof_dus;
   node["max_nof_cu_ups"]            = config.max_nof_cu_ups;
   node["max_nof_ues"]               = config.max_nof_ues;
+  node["max_nof_drbs_per_ue"]       = config.max_nof_drbs_per_ue;
   node["inactivity_timer"]          = config.inactivity_timer;
   node["pdu_session_setup_timeout"] = config.pdu_session_setup_timeout;
-  for (const auto& plmn : config.plmns) {
-    node["plmns"].push_back(plmn);
-  }
-  node["plmns"].SetStyle(YAML::EmitterStyle::Flow);
 
-  for (auto tac : config.tacs) {
-    node["tacs"].push_back(tac);
-  }
-  node["tacs"].SetStyle(YAML::EmitterStyle::Flow);
-
-  node["mobility"] = build_cu_cp_mobility_section(config.mobility_config);
-  node["rrc"]      = build_cu_cp_rrc_section(config.rrc_config);
-  node["security"] = build_cu_cp_security_section(config.security_config);
-  node["f1ap"]     = build_cu_cp_f1ap_section(config.f1ap_config);
+  node["amf"]        = build_cu_cp_amf_section(config.amf_config);
+  node["extra_amfs"] = build_cu_cp_extra_amfs_section(config.extra_amfs);
+  node["mobility"]   = build_cu_cp_mobility_section(config.mobility_config);
+  node["rrc"]        = build_cu_cp_rrc_section(config.rrc_config);
+  node["security"]   = build_cu_cp_security_section(config.security_config);
+  node["f1ap"]       = build_cu_cp_f1ap_section(config.f1ap_config);
 
   return node;
 }
@@ -334,7 +401,6 @@ void srsran::fill_cu_cp_config_in_yaml_schema(YAML::Node& node, const cu_cp_unit
   node["gnb_id_bit_length"] = static_cast<unsigned>(config.gnb_id.bit_length);
   node["ran_node_name"]     = config.ran_node_name;
   node["cu_cp"]             = build_cu_cp_section(config);
-  fill_cu_cp_amf_section(node["amf"], config.amf_cfg);
   fill_cu_cp_log_section(node["log"], config.loggers);
   fill_cu_cp_pcap_section(node["pcap"], config.pcap_cfg);
   fill_cu_cp_metrics_section(node["metrics"], config.metrics);

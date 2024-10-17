@@ -60,8 +60,15 @@ struct network_interface_config {
   /// Maximum amount of packets received in a single syscall.
   int n3_rx_max_mmsg = 256;
 
+  /// Pool occupancy threshold after which we drop packets.
+  float pool_threshold = 0.9;
+
   /// Local IP address to bind for connection from DU to receive uplink user-plane traffic.
   std::string f1u_bind_addr = "127.0.2.1";
+
+  /// External IP address that is advertised to receive NR-U packets from the DU.
+  /// It defaults to \c f1u_bind_addr but may differ in case the CU-UP is behind a NAT.
+  std::string f1u_ext_addr = "auto";
 
   /// Local port to bind for connection from DU to receive uplink user-plane traffic.
   int f1u_bind_port = GTPU_PORT;
@@ -125,8 +132,7 @@ struct formatter<srsran::srs_cu_up::network_interface_config> {
   }
 
   template <typename FormatContext>
-  auto format(srsran::srs_cu_up::network_interface_config cfg, FormatContext& ctx)
-      -> decltype(std::declval<FormatContext>().out())
+  auto format(const srsran::srs_cu_up::network_interface_config& cfg, FormatContext& ctx)
   {
     return format_to(ctx.out(),
                      "upf_port={}, n3_bind_addr={}, n3_bind_port={}, f1u_bind_addr={}, f1u_bind_port={}",

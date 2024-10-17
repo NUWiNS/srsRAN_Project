@@ -23,14 +23,14 @@
 # OS_VERSION            Ubuntu OS version
 # LIB                   uhd or dpdk (lowercase)
 # LIB_VERSION           UHD or DPDK version number
-# ARCH                  gcc/clang compatible arch
+# MARCH                 gcc/clang compatible arch
 # NUM_CORES             Number or empty for all
 # EXTRA_CMAKE_ARGS      Extra flags for srsRAN Project
 
 ARG OS_VERSION=24.04
 ARG LIB=uhd
-ARG LIB_VERSION=4.6.0.0
-ARG ARCH=native
+ARG LIB_VERSION=4.7.0.0
+ARG MARCH=native
 ARG NUM_CORES=""
 
 ##################
@@ -50,29 +50,34 @@ RUN /src/docker/scripts/install_dependencies.sh build && \
     /src/docker/scripts/install_${LIB}_dependencies.sh build
 
 ARG LIB_VERSION
-ARG ARCH
+ARG MARCH
 ARG NUM_CORES
 
 # Compile UHD/DPDK
-RUN /src/docker/scripts/build_${LIB}.sh ${LIB_VERSION} ${ARCH} ${NUM_CORES}
+RUN /src/docker/scripts/build_${LIB}.sh ${LIB_VERSION} ${MARCH} ${NUM_CORES}
 
 # Compile srsRAN Project and install it in the OS
 ARG EXTRA_CMAKE_ARGS=""
 RUN if [ -z "$NUM_CORES" ]; then NUM_CORES=$(nproc); fi && \
     LIB_UPPER=$(echo $LIB | tr '[:lower:]' '[:upper:]') && \
-    export ${LIB_UPPER}_DIR="/opt/${LIB}/${LIB_VERSION}" && \
+    export ${LIB_UPPER}_DIR="/opt/${LIB}/${LIB_VERSION}" \
+    && \
     /src/docker/scripts/builder.sh \
     -m "-j${NUM_CORES} install" \
-    -DBUILD_TESTS=True \
+    -DBUILD_TESTS=False \
     -DENABLE_${LIB_UPPER}=On \
-    -DENABLE_EXPORT=ON \ 
+    -DENABLE_EXPORT=ON \
     -DENABLE_ZEROMQ=ON \
-    -DCMAKE_CXX_FLAGS="-march=${ARCH}" \
+    -DMARCH=${MARCH} \
     -DCMAKE_INSTALL_PREFIX=/opt/srs \
+    ${EXTRA_CMAKE_ARGS} /src \
+    && \
+    /src/docker/scripts/builder.sh -m "-j${NUM_CORES} ru_emulator" \
+    -DBUILD_TESTS=True -DENABLE_${LIB_UPPER}=On -DMARCH=${MARCH} \
     ${EXTRA_CMAKE_ARGS} /src
 
 # Copy extra binaries
-RUN cp /src/build/tests/integrationtests/ofh/ru_emulator /usr/local/bin/ru_emulator
+RUN cp /src/build/tests/integrationtests/ofh/ru_emulator /opt/srs/bin/ru_emulator
 
 ################
 # Stage 2: Run #

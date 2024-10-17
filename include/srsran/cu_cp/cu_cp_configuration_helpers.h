@@ -158,10 +158,6 @@ inline std::map<five_qi_t, srs_cu_cp::cu_cp_qos_config> make_default_cu_cp_qos_c
 inline srs_cu_cp::cu_cp_configuration make_default_cu_cp_config()
 {
   srs_cu_cp::cu_cp_configuration cfg{};
-  // Slices
-  s_nssai_t slice_cfg;
-  slice_cfg.sst = 1;
-  cfg.node.supported_slices.push_back(slice_cfg);
   // DRBs
   cfg.bearers.drb_config = config_helpers::make_default_cu_cp_qos_config_list();
   // Security.
@@ -201,6 +197,22 @@ inline bool is_valid_configuration(const srs_cu_cp::cu_cp_configuration& config)
   }
 
   return true;
+}
+
+inline std::vector<plmn_identity>
+get_supported_plmns(const std::vector<srs_cu_cp::cu_cp_configuration::ngap_params>& ngaps)
+{
+  std::vector<plmn_identity> plmns;
+
+  for (const auto& ngap : ngaps) {
+    for (const auto& ta : ngap.supported_tas) {
+      for (const auto& plmn_item : ta.plmn_list) {
+        plmns.push_back(plmn_item.plmn_id);
+      }
+    }
+  }
+
+  return plmns;
 }
 
 } // namespace config_helpers

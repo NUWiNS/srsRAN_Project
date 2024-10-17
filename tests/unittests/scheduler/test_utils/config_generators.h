@@ -22,8 +22,9 @@
 
 #pragma once
 
-#include "lib/du_manager/converters/scheduler_configuration_helpers.h"
+#include "lib/du/du_high/du_manager/converters/scheduler_configuration_helpers.h"
 #include "lib/scheduler/config/sched_config_manager.h"
+#include "lib/scheduler/logging/scheduler_metrics_handler.h"
 #include "srsran/du/du_cell_config_helpers.h"
 #include "srsran/ran/duplex_mode.h"
 #include "srsran/ran/pucch/pucch_info.h"
@@ -36,6 +37,9 @@
 #include "srsran/support/test_utils.h"
 
 namespace srsran {
+
+class sched_metrics_ue_configurator;
+
 namespace test_helpers {
 
 inline sched_cell_configuration_request_message
@@ -65,7 +69,7 @@ make_default_sched_cell_configuration_request(const config_helpers::cell_config_
   sched_req.searchspace0      = params.search_space0_index;
   sched_req.sib1_payload_size = 101; // Random size.
 
-  pucch_builder_params default_pucch_builder_params           = du_cell_config{}.pucch_cfg;
+  srs_du::pucch_builder_params default_pucch_builder_params   = srs_du::du_cell_config{}.pucch_cfg;
   default_pucch_builder_params.nof_ue_pucch_f0_or_f1_res_harq = 3;
   default_pucch_builder_params.nof_ue_pucch_f2_res_harq       = 6;
   default_pucch_builder_params.nof_sr_resources               = 2;
@@ -78,6 +82,13 @@ make_default_sched_cell_configuration_request(const config_helpers::cell_config_
     pdsch_config    pdsch         = config_helpers::make_default_pdsch_config(params);
     sched_req.zp_csi_rs_list      = pdsch.zp_csi_rs_res_list;
     sched_req.nzp_csi_rs_res_list = csi_meas.nzp_csi_rs_res_list;
+  }
+
+  if (sched_req.tdd_ul_dl_cfg_common.has_value()) {
+    sched_req.dl_data_to_ul_ack =
+        config_helpers::generate_k1_candidates(*sched_req.tdd_ul_dl_cfg_common, params.min_k1);
+  } else {
+    sched_req.dl_data_to_ul_ack = {params.min_k1};
   }
 
   return sched_req;
@@ -116,6 +127,32 @@ create_default_sched_ue_creation_request(const cell_config_builder_params&    pa
       msg.cfg.lc_config_list->push_back(config_helpers::create_default_logical_channel_config(lcid));
     }
   }
+
+  return msg;
+}
+
+inline sched_ue_creation_request_message
+create_empty_spcell_cfg_sched_ue_creation_request(const cell_config_builder_params& params = {})
+{
+  sched_ue_creation_request_message msg{};
+
+  msg.ue_index = to_du_ue_index(0);
+  msg.crnti    = to_rnti(0x4601);
+
+  cell_config_dedicated cfg;
+  cfg.serv_cell_idx              = to_serv_cell_index(0);
+  serving_cell_config& serv_cell = cfg.serv_cell_cfg;
+
+  serv_cell.cell_index = to_du_cell_index(0);
+  // > TAG-ID.
+  serv_cell.tag_id = static_cast<tag_id_t>(0);
+
+  msg.cfg.cells.emplace();
+  msg.cfg.cells->push_back(cfg);
+
+  msg.cfg.lc_config_list.emplace();
+  msg.cfg.lc_config_list->resize(1);
+  (*msg.cfg.lc_config_list)[0] = config_helpers::create_default_logical_channel_config(lcid_t::LCID_SRB0);
 
   return msg;
 }
@@ -255,7 +292,8 @@ inline uplink_config make_test_ue_uplink_config(const config_helpers::cell_confi
   // the active DL BWP of a corresponding serving cell.
   // Inactive for format1_0."
   // Note2: Only k1 >= 4 supported.
-  nr_band band = params.band.has_value() ? params.band.value() : band_helper::get_band_from_dl_arfcn(params.dl_arfcn);
+  nr_band band =
+      params.band.has_value() ? params.band.value() : band_helper::get_band_from_dl_arfcn(params.dl_f_ref_arfcn);
   if (band_helper::get_duplex_mode(band) == duplex_mode::FDD) {
     pucch_cfg.dl_data_to_ul_ack = {params.min_k1};
   } else {
@@ -319,6 +357,7 @@ private:
   std::unique_ptr<sched_configuration_notifier>  cfg_notifier;
   std::unique_ptr<scheduler_metrics_notifier>    metric_notifier;
   std::unique_ptr<sched_metrics_ue_configurator> ue_metrics_configurator;
+  scheduler_metrics_handler                      metrics_handler;
 
   sched_cell_configuration_request_message default_cell_req;
   sched_ue_creation_request_message        default_ue_req;

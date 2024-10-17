@@ -47,7 +47,7 @@ public:
   rlc_tx_am_test_frame(rlc_am_sn_size sn_size_) : sn_size(sn_size_), status(sn_size_) {}
 
   // rlc_tx_upper_layer_data_notifier interface
-  void on_transmitted_sdu(uint32_t max_tx_pdcp_sn) override {}
+  void on_transmitted_sdu(uint32_t max_tx_pdcp_sn, uint32_t queue_free_bytes) override {}
   void on_delivered_sdu(uint32_t max_deliv_pdcp_sn) override {}
   void on_retransmitted_sdu(uint32_t max_retx_pdcp_sn) override {}
   void on_delivered_retransmitted_sdu(uint32_t max_deliv_retx_pdcp_sn) override {}
@@ -136,14 +136,15 @@ std::vector<byte_buffer> generate_pdus(bench_params params, rx_order order)
 {
   // Set Tx config
   rlc_tx_am_config config;
-  config.sn_field_length = rlc_am_sn_size::size18bits;
-  config.pdcp_sn_len     = pdcp_sn_size::size18bits;
-  config.t_poll_retx     = 45;
-  config.max_retx_thresh = 4;
-  config.poll_pdu        = 4;
-  config.poll_byte       = 25;
-  config.queue_size      = 4096;
-  config.max_window      = 0;
+  config.sn_field_length  = rlc_am_sn_size::size18bits;
+  config.pdcp_sn_len      = pdcp_sn_size::size18bits;
+  config.t_poll_retx      = 45;
+  config.max_retx_thresh  = 4;
+  config.poll_pdu         = 4;
+  config.poll_byte        = 25;
+  config.queue_size       = 4096;
+  config.queue_size_bytes = 4096 * 1507;
+  config.max_window       = 0;
 
   // Create test frame
   auto tester = std::make_unique<rlc_tx_am_test_frame>(config.sn_field_length);
@@ -162,7 +163,7 @@ std::vector<byte_buffer> generate_pdus(bench_params params, rx_order order)
   null_rlc_pcap pcap;
 
   metrics_agg = std::make_unique<rlc_metrics_aggregator>(
-      gnb_du_id_t{}, du_ue_index_t{}, rb_id_t{}, timer_duration{1000}, tester.get(), ue_worker);
+      gnb_du_id_t{}, du_ue_index_t{}, rb_id_t{}, timer_duration{0}, tester.get(), ue_worker);
 
   // Make PDUs
   std::vector<byte_buffer> pdus;
@@ -174,7 +175,6 @@ std::vector<byte_buffer> generate_pdus(bench_params params, rx_order order)
                                               *tester,
                                               *tester,
                                               *metrics_agg,
-                                              false,
                                               pcap,
                                               pcell_worker,
                                               ue_worker,
@@ -250,7 +250,7 @@ void benchmark_rx_pdu(const bench_params& params, rx_order order)
   config.t_reassembly      = 200;
 
   auto metrics_agg = std::make_unique<rlc_metrics_aggregator>(
-      gnb_du_id_t{}, du_ue_index_t{}, rb_id_t{}, timer_duration{1000}, tester.get(), ue_worker);
+      gnb_du_id_t{}, du_ue_index_t{}, rb_id_t{}, timer_duration{0}, tester.get(), ue_worker);
 
   // Create RLC AM RX entity
   std::unique_ptr<rlc_rx_am_entity> rlc_rx = std::make_unique<rlc_rx_am_entity>(gnb_du_id_t::min,
@@ -259,7 +259,6 @@ void benchmark_rx_pdu(const bench_params& params, rx_order order)
                                                                                 config,
                                                                                 *tester,
                                                                                 *metrics_agg,
-                                                                                false,
                                                                                 pcap,
                                                                                 ue_worker,
                                                                                 timers);
@@ -333,7 +332,7 @@ struct formatter<rx_order> {
   template <typename FormatContext>
   auto format(rx_order order, FormatContext& ctx) -> decltype(std::declval<FormatContext>().out())
   {
-    constexpr static const char* options[] = {"in order", "swapped edges", "reverse order", "even odd"};
+    static constexpr const char* options[] = {"in order", "swapped edges", "reverse order", "even odd"};
     return format_to(ctx.out(), "{}", options[static_cast<unsigned>(order)]);
   }
 };

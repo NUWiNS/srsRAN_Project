@@ -54,6 +54,8 @@ const uint16_t MAX_NOF_DU_CELLS = 16;
 const uint16_t MAX_NOF_CU_UPS = 65535;
 /// Maximum number of UEs supported by CU-CP (implementation-defined).
 const uint64_t MAX_NOF_CU_UES = 4294967295; // 2^32 - 1
+/// Maximum number of AMFs supported by CU-CP (implementation-defined).
+const uint16_t MAX_NOF_AMFS = 65535;
 
 /// \brief ue_index internally used to identify the UE CU-CP-wide.
 /// \remark The ue_index is derived from the maximum number of DUs and the maximum number of UEs per DU.
@@ -114,6 +116,21 @@ inline du_cell_index_t uint_to_du_cell_index(std::underlying_type_t<du_cell_inde
 constexpr inline std::underlying_type_t<du_cell_index_t> du_cell_index_to_uint(du_cell_index_t du_cell_index)
 {
   return static_cast<std::underlying_type_t<du_cell_index_t>>(du_cell_index);
+}
+
+/// Maximum number of AMFs supported by CU-CP (implementation-defined).
+enum class amf_index_t : uint16_t { min = 0, max = MAX_NOF_AMFS - 1, invalid = MAX_NOF_AMFS };
+
+/// Convert integer to AMF index type.
+constexpr inline amf_index_t uint_to_amf_index(std::underlying_type_t<amf_index_t> index)
+{
+  return static_cast<amf_index_t>(index);
+}
+
+/// Convert AMF index type to integer.
+constexpr inline std::underlying_type_t<amf_index_t> amf_index_to_uint(amf_index_t amf_index)
+{
+  return static_cast<std::underlying_type_t<amf_index_t>>(amf_index);
 }
 
 /// QoS Configuration, i.e. 5QI and the associated PDCP
@@ -296,34 +313,10 @@ struct cu_cp_du_served_cells_item {
   std::optional<cu_cp_gnb_du_sys_info> gnb_du_sys_info; // not optional for NG-RAN
 };
 
-struct cu_cp_alloc_and_retention_prio {
-  uint8_t     prio_level_arp;
-  std::string pre_emption_cap;
-  std::string pre_emption_vulnerability;
-};
-
-struct cu_cp_gbr_qos_info {
-  uint64_t                   max_flow_bit_rate_dl;
-  uint64_t                   max_flow_bit_rate_ul;
-  uint64_t                   guaranteed_flow_bit_rate_dl;
-  uint64_t                   guaranteed_flow_bit_rate_ul;
-  std::optional<std::string> notif_ctrl;
-  std::optional<uint16_t>    max_packet_loss_rate_dl;
-  std::optional<uint16_t>    max_packet_loss_rate_ul;
-};
-
-struct cu_cp_qos_flow_level_qos_params {
-  qos_characteristics_t             qos_characteristics;
-  cu_cp_alloc_and_retention_prio    alloc_and_retention_prio;
-  std::optional<cu_cp_gbr_qos_info> gbr_qos_info;
-  std::optional<bool>               add_qos_flow_info;
-  std::optional<bool>               reflective_qos_attribute;
-};
-
 struct qos_flow_setup_request_item {
-  qos_flow_id_t                   qos_flow_id = qos_flow_id_t::invalid;
-  cu_cp_qos_flow_level_qos_params qos_flow_level_qos_params;
-  std::optional<uint8_t>          erab_id;
+  qos_flow_id_t                 qos_flow_id = qos_flow_id_t::invalid;
+  qos_flow_level_qos_parameters qos_flow_level_qos_params;
+  std::optional<uint8_t>        erab_id;
 };
 
 struct cu_cp_pdu_session_res_setup_item {
