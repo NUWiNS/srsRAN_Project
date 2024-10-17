@@ -68,6 +68,7 @@ services:
       - /usr/share/uhd/images:/usr/share/uhd/images
       # Save logs and more into gnb-storage
       - gnb-storage:/tmp
+      - ../configs:/configs
     # It creates a file/folder into /config_name inside the container
     # Its content would be the value of the file used to create the config
     configs:
@@ -85,7 +86,7 @@ services:
       5gc:
         condition: service_healthy
     # Command to run into the final container
-    command: gnb -c /gnb_config.yml
+    command: gnb -c /configs/srsue_gnb_usrp.yml
     hostname: gnb
 
   metrics-server:
